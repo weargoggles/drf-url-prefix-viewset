@@ -13,15 +13,17 @@ prefix specified by the router.
 Example
 =======
 
-    from rest_framework import viewsets, routers
+````python
+from rest_framework import viewsets, routers
+from drf_url_prefix_viewset.mixins import PrefixedModelViewSetMixin
 
-    class ChildViewSet(viewsets.ModelViewSet, PrefixedModelViewSetMixin):
-        class Meta:
-            model = Child
+class ChildViewSet(viewsets.ModelViewSet, PrefixedModelViewSetMixin):
+    class Meta:
+        model = Child
 
-    router = routers.SimpleRouter()
-    router.register('parent/(?P<parent__pk>\d+)/child', ChildViewSet)
-
+router = routers.SimpleRouter()
+router.register('parent/(?P<parent__pk>\d+)/child', ChildViewSet)
+````
 
 When the PrefixedModelViewSetMixin'd ViewSet is used, its 
 queryset filter will be updated with all of the keyword 
@@ -31,3 +33,28 @@ the capture group names to the text they have captured.
 In this case, it means that the Child QuerySet will 
 have .filter(parent__pk=123) applied when the url begins parent/123/child/.
 
+The second part of the puzzle is providing references to 
+these nested viewsets from their parent viewsets. To that 
+end, a subclass of HyperlinkedIdentityField called 
+PrefixAwareHyperlinkedRelationship, which takes a map of 
+capture group names to attributes of the object being serialized:
+
+````python
+from rest_framework import serializers
+from drf_url_prefix_viewset.fields import PrefixAwareHyperlinkedRelationship
+
+class ParentSerializer(serializers.ModelSerializer):
+    child = PrefixAwareHyperlinkedRelationship(
+        view_name='child-list',
+        url_kwarg_map={
+        'parent__pk': 'pk',
+    })
+````
+
+For the parent with pk '123' this produces:
+
+````json
+{
+    "child": "/parent/123/child/"
+}
+````
